@@ -14,6 +14,8 @@ except Exception:
 def extract_audio_from_url_sync(url: str, output_path: str) -> dict:
     """
     yt-dlp yordamida berilgan URL yoki qidiruvdan musiqani yuklab olish va MP3 ga aylantirish.
+    YouTube bot blokirovkasini (Sign in to confirm you're not a bot) aylanib o'tish uchun
+    Android/iOS mijozlaridan foydalanadi.
     """
     ydl_opts = {
         'format': 'bestaudio/best',
@@ -28,6 +30,15 @@ def extract_audio_from_url_sync(url: str, output_path: str) -> dict:
         'quiet': True,
         'no_warnings': True,
         'extract_flat': False,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios', 'web']
+            }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+        }
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -63,6 +74,11 @@ def search_youtube_sync(query: str, max_results: int = 5) -> list:
         'quiet': True,
         'no_warnings': True,
         'extract_flat': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios', 'web']
+            }
+        }
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         search_query = f"ytsearch{max_results}:{query}"
