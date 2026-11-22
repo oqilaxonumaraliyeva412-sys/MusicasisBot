@@ -249,8 +249,25 @@ async def inline_share_handler(inline_query: InlineQuery):
         pass
 
 
+from aiohttp import web
+import threading
+
+# Render Web Service uchun bepul "Health Check" veb-serveri
+async def handle_ping(request):
+    return web.Response(text="Bot is running!")
+
+def run_fake_web_server():
+    app = web.Application()
+    app.router.add_get('/', handle_ping)
+    app.router.add_get('/healthz', handle_ping)
+    port = int(os.environ.get("PORT", 8080))
+    web.run_app(app, host="0.0.0.0", port=port)
+
 async def main():
     print("Bot ishga tushmoqda...")
+    # Portni fon rejimida ochib beramiz (Render talab qilgani uchun)
+    threading.Thread(target=run_fake_web_server, daemon=True).start()
+    
     # Eskirgan yangilanishlarni tashlab yuborish
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
