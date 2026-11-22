@@ -13,9 +13,8 @@ except Exception:
 
 def extract_audio_from_url_sync(url: str, output_path: str) -> dict:
     """
-    yt-dlp yordamida berilgan URL yoki qidiruvdan musiqani yuklab olish va MP3 ga aylantirish.
-    YouTube bot blokirovkasini (Sign in to confirm you're not a bot) aylanib o'tish uchun
-    Android/iOS mijozlaridan foydalanadi.
+    yt-dlp yordamida audioni yuklab olish va MP3 ga aylantirish.
+    Server blokirovkalarini aylanib o'tish uchun Android va TV client parametrlaridan foydalanadi.
     """
     ydl_opts = {
         'format': 'bestaudio/best',
@@ -32,34 +31,53 @@ def extract_audio_from_url_sync(url: str, output_path: str) -> dict:
         'extract_flat': False,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios', 'web']
+                'player_client': ['android', 'ios', 'tv_embedded']
             }
         },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 11; en_US; Pixel 5) gzip',
             'Accept-Language': 'en-US,en;q=0.9',
         }
     }
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        # Agar qidiruv bo'lsa entries ichida keladi
-        if 'entries' in info and info['entries']:
-            info = info['entries'][0]
-        
-        video_id = info.get('id')
-        title = info.get('title', 'Nomaʼlum musiqa')
-        artist = info.get('uploader') or info.get('artist') or info.get('creator') or 'Nomaʼlum ijrochi'
-        duration = info.get('duration', 0)
-        file_path = os.path.join(output_path, f"{video_id}.mp3")
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            if 'entries' in info and info['entries']:
+                info = info['entries'][0]
+            
+            video_id = info.get('id')
+            title = info.get('title', 'Nomaʼlum musiqa')
+            artist = info.get('uploader') or info.get('artist') or info.get('creator') or 'Nomaʼlum ijrochi'
+            duration = info.get('duration', 0)
+            file_path = os.path.join(output_path, f"{video_id}.mp3")
 
-        return {
-            'file_path': file_path,
-            'title': title,
-            'artist': artist,
-            'duration': duration,
-            'webpage_url': info.get('webpage_url', url)
-        }
+            return {
+                'file_path': file_path,
+                'title': title,
+                'artist': artist,
+                'duration': duration,
+                'webpage_url': info.get('webpage_url', url)
+            }
+    except Exception as e:
+        # Agar youtube baribir bot desa, fallback sifatida zaxira audio qidiruv
+        if "Sign in" in str(e) or "bot" in str(e).lower():
+            # Zaxira opsiyasi
+            ydl_opts['extractor_args']['youtube']['player_client'] = ['mweb', 'android']
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                if 'entries' in info and info['entries']:
+                    info = info['entries'][0]
+                video_id = info.get('id')
+                file_path = os.path.join(output_path, f"{video_id}.mp3")
+                return {
+                    'file_path': file_path,
+                    'title': info.get('title', 'Musiqa'),
+                    'artist': info.get('uploader', 'Ijrochi'),
+                    'duration': info.get('duration', 0),
+                    'webpage_url': info.get('webpage_url', url)
+                }
+        raise e
 
 async def download_audio_from_url(url: str) -> dict:
     """Asinxron tarzda audio yuklab olish"""
@@ -68,7 +86,7 @@ async def download_audio_from_url(url: str) -> dict:
 
 def search_youtube_sync(query: str, max_results: int = 5) -> list:
     """
-    Qo'shiq nomi yoki ijrochi nomi bo'yicha YouTube'dan qidirish (yuklamasdan, ma'lumot olish)
+    Qo'shiq nomi yoki ijrochi nomi bo'yicha YouTube'dan qidirish
     """
     ydl_opts = {
         'quiet': True,
@@ -76,7 +94,7 @@ def search_youtube_sync(query: str, max_results: int = 5) -> list:
         'extract_flat': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios', 'web']
+                'player_client': ['android', 'ios']
             }
         }
     }
@@ -101,9 +119,7 @@ async def search_youtube(query: str, max_results: int = 5) -> list:
     return await loop.run_in_executor(None, search_youtube_sync, query, max_results)
 
 def search_artist_songs_sync(artist_name: str, max_results: int = 8) -> list:
-    """
-    Ijrochi ismi bo'yicha eng mashhur qo'shiqlarini topish
-    """
+    """Ijrochi qo'shiqlari qidiruvi"""
     query = f"{artist_name} top songs audio"
     return search_youtube_sync(query, max_results=max_results)
 
@@ -111,4 +127,3 @@ async def search_artist_songs(artist_name: str, max_results: int = 8) -> list:
     """Ijrochi qidiruvining asinxron varianti"""
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, search_artist_songs_sync, artist_name, max_results)
-
